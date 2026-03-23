@@ -1,0 +1,5 @@
+anthropic 
+pulp 
+requests 
+python-dotenv
+streamlit

@@ -1,0 +1,307 @@
+name: CI/CD — Testes e Validação
+
+on:
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: "Ambiente alvo"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      testar_apis:
+        description: "Testar conexão com APIs externas?"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+
+  
+  # JOB 1: Lint e estrutura do projeto
+  
+  lint:
+    name: Lint e estrutura
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8
+
+      - name: Verificar estrutura de arquivos obrigatórios
+        run: |
+          echo "Verificando arquivos obrigatórios..."
+          for f in \
+            app.py \
+            main.py \
+            requirements.txt \
+            agent/agente.py \
+            agent/tools_schema.py \
+            tools/busca.py \
+            tools/otimizador.py; do
+            if [ ! -f "$f" ]; then
+              echo "ERRO: arquivo obrigatório não encontrado: $f"
+              exit 1
+            else
+              echo "OK: $f"
+            fi
+          done
+
+      - name: Lint com flake8
+        run: |
+          flake8 tools/ agent/ app.py main.py \
+            --max-line-length=110 \
+            --extend-ignore=E501,W503 \
+            --exclude=__pycache__
+
+  
+  # JOB 2:Testes unitários do otimizador
+  
+  testes-otimizador:
+    name: Testes — Otimizador PL
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Testar aplicar_filtros
+        run: |
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, ".")
+          from tools.otimizador import aplicar_filtros
+
+          produtos = [
+            {"titulo": "Mouse Logitech", "preco": 150.0, "avaliacao": 4.5, "num_avaliacoes": 500},
+            {"titulo": "Mouse Multilaser", "preco": 40.0, "avaliacao": 3.2, "num_avaliacoes": 100},
+            {"titulo": "Mouse Razer", "preco": 400.0, "avaliacao": 4.8, "num_avaliacoes": 1200},
+          ]
+
+          # teste 1: filtro por avaliação mínima
+          resultado = aplicar_filtros(produtos, {"avaliacao_minima": 4.0})
+          assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
+          print("OK: filtro por avaliação mínima")
+
+          # teste 2: filtro por preço máximo
+          resultado = aplicar_filtros(produtos, {"preco_maximo_por_item": 200.0})
+          assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
+          print("OK: filtro por preço máximo")
+
+          # teste 3: filtro por marca excluída
+          resultado = aplicar_filtros(produtos, {"marcas_excluidas": ["multilaser"]})
+          assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
+          print("OK: filtro por marca excluída")
+
+          # teste 4: sem restrições
+          resultado = aplicar_filtros(produtos, {})
+          assert len(resultado) == 3, f"Esperado 3, got {len(resultado)}"
+          print("OK: sem restrições retorna todos")
+          EOF
+
+      - name: Testar otimizar_compras
+        run: |
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, ".")
+          from tools.otimizador import otimizar_compras
+
+          produtos = [
+            {"titulo": "Mouse A", "preco": 150.0, "avaliacao": 4.5, "num_avaliacoes": 500, "categoria": "mouse"},
+            {"titulo": "Mouse B", "preco": 80.0,  "avaliacao": 3.8, "num_avaliacoes": 200, "categoria": "mouse"},
+            {"titulo": "Teclado A", "preco": 200.0, "avaliacao": 4.7, "num_avaliacoes": 800, "categoria": "teclado"},
+            {"titulo": "Teclado B", "preco": 120.0, "avaliacao": 4.0, "num_avaliacoes": 300, "categoria": "teclado"},
+          ]
+
+          # teste 1: combinação ótima dentro do orçamento
+          resultado = otimizar_compras(produtos, orcamento=300.0)
+          assert len(resultado["selecionados"]) == 2, "Deve selecionar 1 mouse e 1 teclado"
+          assert resultado["total"] <= 300.0, "Total deve respeitar orçamento"
+          assert resultado["sobrou"] >= 0, "Sobrou não pode ser negativo"
+          print(f"OK: otimização — total R$ {resultado['total']}, sobrou R$ {resultado['sobrou']}")
+
+          # teste 2: orçamento insuficiente
+          resultado = otimizar_compras(produtos, orcamento=10.0)
+          assert "erro" in resultado, "Deve retornar erro para orçamento insuficiente"
+          print(f"OK: orçamento insuficiente — {resultado['erro'][:50]}")
+
+          # teste 3: lista vazia
+          resultado = otimizar_compras([], orcamento=500.0)
+          assert "erro" in resultado, "Deve retornar erro para lista vazia"
+          print("OK: lista vazia tratada corretamente")
+          EOF
+
+  
+  # JOB 3:Testes de conexão com APIs
+  
+  testes-apis:
+    name: Testes — Conexão APIs externas
+    runs-on: ubuntu-latest
+    needs: lint
+    if: ${{ github.event.inputs.testar_apis == 'true' }}
+
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      RAPIDAPI_KEY:      ${{ secrets.RAPIDAPI_KEY }}
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Testar conexão com Anthropic API
+        run: |
+          python - <<'EOF'
+          import os, anthropic
+          client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+          resp = client.messages.create(
+              model="claude-haiku-4-5-20251001",
+              max_tokens=10,
+              messages=[{"role": "user", "content": "ping"}]
+          )
+          assert resp.content, "Resposta vazia da API Anthropic"
+          print("OK: Anthropic API conectada")
+          EOF
+
+      - name: Testar conexão com Amazon (RapidAPI)
+        run: |
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, ".")
+          from tools.busca import buscar_amazon
+          resultados = buscar_amazon("mouse", limite=2)
+          assert isinstance(resultados, list), "Deve retornar uma lista"
+          print(f"OK: Amazon API — {len(resultados)} produtos retornados")
+          EOF
+
+      - name: Testar conexão com eBay (RapidAPI)
+        run: |
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, ".")
+          from tools.busca import buscar_ebay
+          resultados = buscar_ebay("mouse", limite=2)
+          assert isinstance(resultados, list), "Deve retornar uma lista"
+          print(f"OK: eBay API — {len(resultados)} produtos retornados")
+          EOF
+
+      - name: Testar conexão com AliExpress (RapidAPI)
+        run: |
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, ".")
+          from tools.busca import buscar_aliexpress
+          resultados = buscar_aliexpress("mouse", limite=2)
+          assert isinstance(resultados, list), "Deve retornar uma lista"
+          print(f"OK: AliExpress API — {len(resultados)} produtos retornados")
+          EOF
+
+ 
+  # JOB 4: Teste do app Streamlit
+  
+  teste-streamlit:
+    name: Testes — App Streamlit
+    runs-on: ubuntu-latest
+    needs: [testes-otimizador, testes-apis]
+    if: always()
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Verificar se app.py importa sem erros
+        run: |
+          python - <<'EOF'
+          import ast, sys
+
+          with open("app.py", "r", encoding="utf-8") as f:
+              source = f.read()
+
+          try:
+              ast.parse(source)
+              print("OK: app.py é Python válido")
+          except SyntaxError as e:
+              print(f"ERRO de sintaxe em app.py: {e}")
+              sys.exit(1)
+          EOF
+
+      - name: Iniciar Streamlit em background e checar saúde
+        run: |
+          ANTHROPIC_API_KEY=test RAPIDAPI_KEY=test \
+          streamlit run app.py --server.port 8501 --server.headless true &
+          sleep 8
+          curl -f http://localhost:8501/_stcore/health && echo "OK: Streamlit respondendo"
+
+ 
+  # JOB 5: Resumo final
+  
+  resumo:
+    name: Resumo da execução
+    runs-on: ubuntu-latest
+    needs: [lint, testes-otimizador, testes-apis, teste-streamlit]
+    if: always()
+
+    steps:
+      - name: Exibir resultado dos jobs
+        run: |
+          
+          echo "  RESULTADO CI/CD — Agente Otimizador de Compras"
+          
+          echo "Ambiente    : ${{ github.event.inputs.ambiente }}"
+          echo "Testou APIs : ${{ github.event.inputs.testar_apis }}"
+          echo "Lint        : ${{ needs.lint.result }}"
+          echo "Otimizador  : ${{ needs.testes-otimizador.result }}"
+          echo "APIs        : ${{ needs.testes-apis.result }}"
+          echo "Streamlit   : ${{ needs.teste-streamlit.result }}"
+          
+
+          if [[ \
+            "${{ needs.lint.result }}" == "failure" || \
+            "${{ needs.testes-otimizador.result }}" == "failure" || \
+            "${{ needs.teste-streamlit.result }}" == "failure" \
+          ]]; then
+            echo "STATUS: FALHOU — corrija os erros antes do deploy"
+            exit 1
+          else
+            echo "STATUS: PASSOU — pronto para deploy em ${{ github.event.inputs.ambiente }}"
+          fi
