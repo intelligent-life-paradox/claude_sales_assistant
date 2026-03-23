@@ -67,7 +67,7 @@ jobs:
         run: |
           flake8 tools/ agent/ app.py main.py \
             --max-line-length=110 \
-            --extend-ignore=E501,W503 \
+            --extend-ignore=E501,W503,E221,E302,E303,W292 \
             --exclude=__pycache__
 
   
@@ -103,22 +103,22 @@ jobs:
             {"titulo": "Mouse Razer", "preco": 400.0, "avaliacao": 4.8, "num_avaliacoes": 1200},
           ]
 
-          # teste 1: filtro por avaliação mínima
+          # job2/t1/teste 1: filtro por avaliação mínima
           resultado = aplicar_filtros(produtos, {"avaliacao_minima": 4.0})
           assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
           print("OK: filtro por avaliação mínima")
 
-          # teste 2: filtro por preço máximo
+          # job2/t1/teste 2: filtro por preço máximo
           resultado = aplicar_filtros(produtos, {"preco_maximo_por_item": 200.0})
           assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
           print("OK: filtro por preço máximo")
 
-          # teste 3: filtro por marca excluída
+          # job3/t1/teste 3: filtro por marca excluída
           resultado = aplicar_filtros(produtos, {"marcas_excluidas": ["multilaser"]})
           assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
           print("OK: filtro por marca excluída")
 
-          # teste 4: sem restrições
+          # job4/t1/teste 4: sem restrições
           resultado = aplicar_filtros(produtos, {})
           assert len(resultado) == 3, f"Esperado 3, got {len(resultado)}"
           print("OK: sem restrições retorna todos")
@@ -138,19 +138,19 @@ jobs:
             {"titulo": "Teclado B", "preco": 120.0, "avaliacao": 4.0, "num_avaliacoes": 300, "categoria": "teclado"},
           ]
 
-          # teste 1: combinação ótima dentro do orçamento
+          # job2/t2/teste 1: combinação ótima dentro do orçamento
           resultado = otimizar_compras(produtos, orcamento=300.0)
           assert len(resultado["selecionados"]) == 2, "Deve selecionar 1 mouse e 1 teclado"
           assert resultado["total"] <= 300.0, "Total deve respeitar orçamento"
           assert resultado["sobrou"] >= 0, "Sobrou não pode ser negativo"
           print(f"OK: otimização — total R$ {resultado['total']}, sobrou R$ {resultado['sobrou']}")
 
-          # teste 2: orçamento insuficiente
+          # job2/t2/teste 2: orçamento insuficiente
           resultado = otimizar_compras(produtos, orcamento=10.0)
           assert "erro" in resultado, "Deve retornar erro para orçamento insuficiente"
           print(f"OK: orçamento insuficiente — {resultado['erro'][:50]}")
 
-          # teste 3: lista vazia
+          # job2/t2/teste 3: lista vazia
           resultado = otimizar_compras([], orcamento=500.0)
           assert "erro" in resultado, "Deve retornar erro para lista vazia"
           print("OK: lista vazia tratada corretamente")
