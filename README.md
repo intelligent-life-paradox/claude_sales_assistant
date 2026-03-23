@@ -111,11 +111,13 @@ Para rodar: **Actions → CI/CD — Testes e Validação → Run workflow**
 ## 📸 Screenshots
 
 ### App
-
+ *screenshot 1*
 ![App - Interface principal](images/app_image.png)
-
+<br><br>
+*screenshot 2*
 ![App - Resultado da otimização](images/app_image_2.png)
-
+<br><br>
+*screenshot 3*
 ![App - Análise de reviews](images/app_image_3.png)
 
 ### CI/CD
