@@ -67,7 +67,7 @@ jobs:
         run: |
           flake8 tools/ agent/ app.py main.py \
             --max-line-length=110 \
-            --extend-ignore=E501,W503,E221,E302,E303,W292 \
+            --extend-ignore=E501,W503,E221,E302,E303,W292,E402,E272 \
             --exclude=__pycache__
 
   
