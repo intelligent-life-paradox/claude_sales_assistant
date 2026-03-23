@@ -71,7 +71,7 @@ jobs:
             --exclude=__pycache__
 
   
-  # JOB 2:Testes unitários do otimizador
+  # JOB 2: Testes unitários do otimizador
   
   testes-otimizador:
     name: Testes — Otimizador PL
@@ -103,22 +103,22 @@ jobs:
             {"titulo": "Mouse Razer", "preco": 400.0, "avaliacao": 4.8, "num_avaliacoes": 1200},
           ]
 
-          # job2/t1/teste 1: filtro por avaliação mínima
+          # j2/t1/teste 1: filtro por avaliação mínima
           resultado = aplicar_filtros(produtos, {"avaliacao_minima": 4.0})
           assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
           print("OK: filtro por avaliação mínima")
 
-          # job2/t1/teste 2: filtro por preço máximo
+          # j2/t1/teste 2: filtro por preço máximo
           resultado = aplicar_filtros(produtos, {"preco_maximo_por_item": 200.0})
           assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
           print("OK: filtro por preço máximo")
 
-          # job3/t1/teste 3: filtro por marca excluída
+          # j2/t1/teste 3: filtro por marca excluída
           resultado = aplicar_filtros(produtos, {"marcas_excluidas": ["multilaser"]})
           assert len(resultado) == 2, f"Esperado 2, got {len(resultado)}"
           print("OK: filtro por marca excluída")
 
-          # job4/t1/teste 4: sem restrições
+          # j2/t1/teste 4: sem restrições
           resultado = aplicar_filtros(produtos, {})
           assert len(resultado) == 3, f"Esperado 3, got {len(resultado)}"
           print("OK: sem restrições retorna todos")
@@ -138,26 +138,26 @@ jobs:
             {"titulo": "Teclado B", "preco": 120.0, "avaliacao": 4.0, "num_avaliacoes": 300, "categoria": "teclado"},
           ]
 
-          # job2/t2/teste 1: combinação ótima dentro do orçamento
+          # j2/t2/teste 1: combinação ótima dentro do orçamento
           resultado = otimizar_compras(produtos, orcamento=300.0)
           assert len(resultado["selecionados"]) == 2, "Deve selecionar 1 mouse e 1 teclado"
           assert resultado["total"] <= 300.0, "Total deve respeitar orçamento"
           assert resultado["sobrou"] >= 0, "Sobrou não pode ser negativo"
           print(f"OK: otimização — total R$ {resultado['total']}, sobrou R$ {resultado['sobrou']}")
 
-          # job2/t2/teste 2: orçamento insuficiente
+          # j2/t2/teste 2: orçamento insuficiente
           resultado = otimizar_compras(produtos, orcamento=10.0)
           assert "erro" in resultado, "Deve retornar erro para orçamento insuficiente"
           print(f"OK: orçamento insuficiente — {resultado['erro'][:50]}")
 
-          # job2/t2/teste 3: lista vazia
+          # j2/t2/teste 3: lista vazia
           resultado = otimizar_compras([], orcamento=500.0)
           assert "erro" in resultado, "Deve retornar erro para lista vazia"
           print("OK: lista vazia tratada corretamente")
           EOF
 
   
-  # JOB 3:Testes de conexão com APIs
+  # JOB 3: Testes de conexão com APIs
   
   testes-apis:
     name: Testes — Conexão APIs externas
@@ -185,7 +185,13 @@ jobs:
         run: |
           python - <<'EOF'
           import os, anthropic
-          client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+          api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+          if not api_key:
+              print("SKIP: ANTHROPIC_API_KEY não configurada, pulando teste.")
+              exit(0)
+
+          client = anthropic.Anthropic(api_key=api_key)
           resp = client.messages.create(
               model="claude-haiku-4-5-20251001",
               max_tokens=10,
@@ -198,7 +204,10 @@ jobs:
       - name: Testar conexão com Amazon (RapidAPI)
         run: |
           python - <<'EOF'
-          import sys
+          import os, sys
+          if not os.getenv("RAPIDAPI_KEY", "").strip():
+              print("SKIP: RAPIDAPI_KEY não configurada, pulando teste.")
+              sys.exit(0)
           sys.path.insert(0, ".")
           from tools.busca import buscar_amazon
           resultados = buscar_amazon("mouse", limite=2)
@@ -209,7 +218,10 @@ jobs:
       - name: Testar conexão com eBay (RapidAPI)
         run: |
           python - <<'EOF'
-          import sys
+          import os, sys
+          if not os.getenv("RAPIDAPI_KEY", "").strip():
+              print("SKIP: RAPIDAPI_KEY não configurada, pulando teste.")
+              sys.exit(0)
           sys.path.insert(0, ".")
           from tools.busca import buscar_ebay
           resultados = buscar_ebay("mouse", limite=2)
@@ -220,7 +232,10 @@ jobs:
       - name: Testar conexão com AliExpress (RapidAPI)
         run: |
           python - <<'EOF'
-          import sys
+          import os, sys
+          if not os.getenv("RAPIDAPI_KEY", "").strip():
+              print("SKIP: RAPIDAPI_KEY não configurada, pulando teste.")
+              sys.exit(0)
           sys.path.insert(0, ".")
           from tools.busca import buscar_aliexpress
           resultados = buscar_aliexpress("mouse", limite=2)
